@@ -1,4 +1,4 @@
-##FIX THE ENV VARIABLE THING!
+## NEXT: ADD THE BUTTON TO GET DEPT. RATINGS IN HTML
 
 import requests
 import bs4
@@ -13,11 +13,123 @@ import base64
 from dotenv import load_dotenv
 load_dotenv()#Allows it to get the API key from the .env
 
+class Professor:
+    def __init__(self, url: str = None, reviews: list[str] = [], rating: float = 0.0, firstName: str = "", lastName: str = "", numRatings: int = 0):
+        self.url = url
+        self.reviews = reviews
+        self.rating = rating
+        self.firstName = firstName
+        self.lastName = lastName
+        self.numRatings = numRatings
+
 class Utilities:
-    def getProfReviews(self, url):
+    def getAllProfURL(self, uni, dept):
+        schoolID, deptID = self.getAllIds(self, uni, dept)
+        deptIDNum = deptID.split("-")[1]#Since deptID is currently in format "Department-x"
+        filteredURL = f"https://www.ratemyprofessors.com/search/professors/{schoolID}?q=*&did={deptIDNum}"
+
+        response = requests.get(filteredURL, headers={"User-Agent": "Mozilla/5.0"})
+        soup = bs4.BeautifulSoup(response.content, "html.parser")
+        profs = soup.find_all("a", class_="TeacherCard__StyledTeacherCard-syjs0d-0")
+        
+        profURLs = []
+        for i in profs:
+            profURLs.append(Professor(url=f"https://www.ratemyprofessors.com{i["href"]}"))
+
+        #Get the JSON object that has the required data 
+        script = soup.find('script', string=re.compile('__RELAY_STORE__'))#Get the __RELAY_STORE__ data (inside the script tag)
+        store_text = script.string
+        json_str = store_text.split('window.__RELAY_STORE__ = ')[1] #Get JUST that data (it was split into the window._RELAY_STORE__ tag and the actual data)
+        json_str = json_str[:json_str.index(';\n')]#Gives us just the JSON object that window.__RELAY_STORE__ is equal to
+        store = json.loads(json_str) #Convert that string into a Python JSON object
+
+        # Find the connection object to get the starting pageInfo
+        for v in store.values():
+            if v.get('__typename') == 'TeacherSearchConnectionConnection':
+                connection = v#Gives us the entire dictionary inside TeacherSearchConnectionConnection
+                break
+
+        pageInfoKey = connection['pageInfo']['__ref']
+        pageInfo = store[pageInfoKey]
+
+        has_next_page = pageInfo['hasNextPage']
+        cursor = pageInfo['endCursor']
+
+        #Encode the school and dept ID's so they're in RMP's format
+        schoolEncoded = base64.b64encode(f"School-{schoolID}".encode()).decode()
+        deptEncoded   = base64.b64encode(deptID.encode()).decode()
+
+        while has_next_page:
+            response = requests.post(
+                "https://www.ratemyprofessors.com/graphql",
+                json={
+                    "query": """
+                        query GetProfs($query: TeacherSearchQuery!, $cursor: String) {
+                            newSearch {
+                                teachers(query: $query, first: 5, after: $cursor) {
+                                    edges {
+                                        node {
+                                            legacyId
+                                        }
+                                    }
+                                    pageInfo {
+                                        hasNextPage
+                                        endCursor
+                                    }
+                                }
+                            }
+                        }
+                    """,
+                    "variables": {
+                        "query": {
+                            "text": "",
+                            "schoolID": schoolEncoded,
+                            "departmentID": deptEncoded,
+                            "fallback": True
+                        },
+                        "cursor": cursor
+                    }
+                },
+                headers={"Authorization": "Basic dGVzdDp0ZXN0", "User-Agent": "Mozilla/5.0"}
+            )
+
+            data = response.json()
+            teachers = data["data"]["newSearch"]["teachers"]
+
+            for edge in teachers["edges"]:
+                profURLs.append(Professor(url = f"https://www.ratemyprofessors.com/professor/{edge['node']['legacyId']}"))
+
+            has_next_page = teachers["pageInfo"]["hasNextPage"]
+            cursor = teachers["pageInfo"]["endCursor"]
+
+        return profURLs
+
+    def getProfRatings(self, prof):
         #Get the HTML from RMP. The header is required because RMP blocks Python bots, so we must pretend to be an actual browser
         headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(prof.url, headers=headers)
+        soup = bs4.BeautifulSoup(response.content, "html.parser")
+
+        #Get the GraphQL ID for the prof
+        script = soup.find('script', string=re.compile('__RELAY_STORE__'))#soup.find() returns the first instance of a specific tag (script in this case). The string= part ensures that it returns only the script tag that contains an instance of __RELAY_STORE__. re.compile() converts the string into a regex (searching) object, so that BS4 isn't searching for a script tag whose entire contexts are exclusively __RELAY_STORE__ but just contain it.
+        store_text = script.string#Remove the HTML tags and keep just the parts inside the tags (i.e. the body)
+        json_str = store_text.split('window.__RELAY_STORE__ = ')[1]#There's 3 things inside the script tag. Keep just the right part (what __RELAY_STORE is = to)
+        json_str = json_str[:json_str.index(';\n')]#Get the piece that ends with a semicolon (i.e. the value that window.__RELAY_STORE__ is equal to)
+        store = json.loads(json_str)#Converts the JSON string into a Python dictionary. NOTE: This creates a nested dictionary, where the ID we need is the outer key and the inner stuff includes the type, legacy ID, etc.
+        graphql_id = next(key for key in store.keys() if store[key].get('__typename') == 'Teacher')#next goes through an iterable object one by one. Since it's only called once here, it prints the first object. The loop creates a list, loops through each key in the outer dictionary, checks the value of the __typename entry (if existent), and if it's Teacher then we know this specific inner dictionary (and its outer key, which is the ID) is the one we want. Thus, add that key to the list
+
+        #Put the rating and name of the prof into the object
+        prof.rating = store[graphql_id]['avgRating']
+        prof.firstName = store[graphql_id]['firstName']
+        prof.lastName = store[graphql_id]['lastName']
+        prof.numRatings = store[graphql_id]['numRatings']
+
+        return prof
+        
+    def getProfReviews(self, prof):
+        #Get the HTML from RMP. The header is required because RMP blocks Python bots, so we must pretend to be an actual browser
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(prof.url, headers=headers)
         soup = bs4.BeautifulSoup(response.content, "html.parser")
 
         reviewsLoadedBeforePressingButton = 5
@@ -64,7 +176,8 @@ class Utilities:
                 # Update cursor for next page
                 cursor = data['data']['node']['ratings']['pageInfo']['endCursor']
 
-            return reviews
+            prof.reviews = reviews
+            return prof
         return []
 
     def generateResponse(self, data, className = None):
@@ -100,7 +213,7 @@ class Utilities:
         
         return url
     
-    def getAllIds(self, uni, dept):
+    def getAllIds(self, uni, dept=None):
         #Get the school ID
         response = requests.post(
             "https://www.ratemyprofessors.com/graphql",
@@ -176,126 +289,110 @@ class Utilities:
         allDeptIds = []
         for i in data["data"]["newSearch"]["teachers"]["filters"][0]["options"]:
             allDeptIds.append(i)#Returns a list of dicts. E.g. [{"id": "ABCD", "value": "accounting"}, {"id": "EFGH", "value": "anthropology"}]
-        
-        #Find the department ID corresponding to the user's department
-        dept = dept.lower()
-        best_similarity = 0.8
-        best_id = None
-        for i in allDeptIds:
-            value = i.get("value", "").lower()
-            id_b64 = i.get("id")
 
-            # Skip entries with no ID
-            if not id_b64:
-                continue
+        if dept != None:
+            #Find the department ID corresponding to the user's department
+            dept = dept.lower()
+            best_similarity = 0.8
+            best_id = None
+            for i in allDeptIds:
+                value = i.get("value", "").lower()
+                id_b64 = i.get("id")
 
-            # Compute similarity score of current ID vs. user input
-            similarity = SequenceMatcher(None, dept, value).ratio()
+                # Skip entries with no ID
+                if not id_b64:
+                    continue
 
-            # Only update if it's better than the current best
-            if similarity >= best_similarity:
-                try:
-                    decoded = base64.b64decode(id_b64).decode("utf-8")
-                except Exception:
-                    continue  # skip invalid Base64
+                # Compute similarity score of current ID vs. user input
+                similarity = SequenceMatcher(None, dept, value).ratio()
 
-                if decoded:
-                    best_similarity = similarity
-                    best_id = decoded
+                # Only update if it's better than the current best
+                if similarity >= best_similarity:
+                    try:
+                        decoded = base64.b64decode(id_b64).decode("utf-8")
+                    except Exception:
+                        continue  # skip invalid Base64
 
-        return schoolId, best_id
-    
-    def getAllProfURL(self, uni, dept):
-        schoolID, deptID = self.getAllIds(uni, dept)
-        deptIDNum = deptID.split("-")[1]#Since deptID is currently in format "Department-x"
-        filteredURL = f"https://www.ratemyprofessors.com/search/professors/{schoolID}?q=*&did={deptIDNum}"
+                    if decoded:
+                        best_similarity = similarity
+                        best_id = decoded
 
-        response = requests.get(filteredURL, headers={"User-Agent": "Mozilla/5.0"})
-        soup = bs4.BeautifulSoup(response.content, "html.parser")
-        profs = soup.find_all("a", class_="TeacherCard__StyledTeacherCard-syjs0d-0")
-        
-        profURLs = []
-        for i in profs:
-            profURLs.append(f"https://www.ratemyprofessors.com{i["href"]}")
+            return schoolId, best_id
 
-        #Get the JSON object that has the required data 
-        script = soup.find('script', string=re.compile('__RELAY_STORE__'))#Get the __RELAY_STORE__ data (inside the script tag)
-        store_text = script.string
-        json_str = store_text.split('window.__RELAY_STORE__ = ')[1] #Get JUST that data (it was split into the window._RELAY_STORE__ tag and the actual data)
-        json_str = json_str[:json_str.index(';\n')]#Gives us just the JSON object that window.__RELAY_STORE__ is equal to
-        store = json.loads(json_str) #Convert that string into a Python JSON object
-
-        # Find the connection object to get the starting pageInfo
-        for v in store.values():
-            if v.get('__typename') == 'TeacherSearchConnectionConnection':
-                connection = v#Gives us the entire dictionary inside TeacherSearchConnectionConnection
-                break
-
-        pageInfoKey = connection['pageInfo']['__ref']
-        pageInfo = store[pageInfoKey]
-
-        has_next_page = pageInfo['hasNextPage']
-        cursor = pageInfo['endCursor']
-
-        #Encode the school and dept ID's so they're in RMP's format
-        schoolEncoded = base64.b64encode(f"School-{schoolID}".encode()).decode()
-        deptEncoded   = base64.b64encode(deptID.encode()).decode()
-
-        while has_next_page:
-            response = requests.post(
-                "https://www.ratemyprofessors.com/graphql",
-                json={
-                    "query": """
-                        query GetProfs($query: TeacherSearchQuery!, $cursor: String) {
-                            newSearch {
-                                teachers(query: $query, first: 5, after: $cursor) {
-                                    edges {
-                                        node {
-                                            legacyId
-                                        }
-                                    }
-                                    pageInfo {
-                                        hasNextPage
-                                        endCursor
-                                    }
-                                }
-                            }
-                        }
-                    """,
-                    "variables": {
-                        "query": {
-                            "text": "",
-                            "schoolID": schoolEncoded,
-                            "departmentID": deptEncoded,
-                            "fallback": True
-                        },
-                        "cursor": cursor
-                    }
-                },
-                headers={"Authorization": "Basic dGVzdDp0ZXN0", "User-Agent": "Mozilla/5.0"}
-            )
-
-            data = response.json()
-            teachers = data["data"]["newSearch"]["teachers"]
-
-            for edge in teachers["edges"]:
-                profURLs.append(f"https://www.ratemyprofessors.com/professor/{edge['node']['legacyId']}")
-
-            has_next_page = teachers["pageInfo"]["hasNextPage"]
-            cursor = teachers["pageInfo"]["endCursor"]
-
-        return profURLs
+        return schoolId
     
     def getReviewsAndResponse(self, uni, dept, className):
         allURL = self.getAllProfURL(uni, dept)
         allDeptReviews = []
 
         for i in allURL:
-            reviews = self.getProfReviews(i)
-            allDeptReviews.append(reviews)
+            profWithReviews = self.getProfReviews(i)
+            allDeptReviews.append(profWithReviews.reviews)
         
         geminiResponse = self.generateResponse(allDeptReviews, className) 
         return geminiResponse
+
+    def getAvgRating(self, uni, dept):
+        allURL = self.getAllProfURL(self, uni, dept)
+        rating = 0
+        count = 0
+        highProf = Professor()#Doing this creates a prof w/ rating 0 with no other attributes
+        lowProf = Professor(rating = 5)#Must be a 5 because a 0 would mean no prof can be worse
+
+        for i in allURL:
+            profRating = self.getProfRatings(self, i)
+
+            if profRating.rating != 0: #Since a 0 would massively decrease the average just for an unrated prof, which isn't fair
+                rating += profRating.rating
+                count += 1
+            if profRating.rating > highProf.rating and profRating.numRatings >= 10:#If this is the new best prof in the dept
+                highProf = profRating
+            elif profRating.rating < lowProf.rating and profRating.numRatings >= 10: #If this is the new worst prof in the dept
+                lowProf = profRating
+
+        rating = round(rating/count, 1)
+        return rating, f"{highProf.firstName} {highProf.lastName}", f"{lowProf.firstName} {lowProf.lastName}", highProf.rating, lowProf.rating
+
+    def getAllDepts(self, uni):
+        #Get the HTML from RMP. The header is required because RMP blocks Python bots, so we must pretend to be an actual browser
+        headers = {"User-Agent": "Mozilla/5.0"}
+        school_id = self.getAllIds(self, uni)
+        response = requests.get(f"https://www.ratemyprofessors.com/search/professors/{school_id}?q=*", headers=headers)
+        soup = bs4.BeautifulSoup(response.content, "html.parser")
+
+        script_tag = soup.find("script", string=re.compile(r"window\.__RELAY_STORE__"))
+        script_text = script_tag.string
+
+        #This function extracts just the inner data from the marker. So, from 'window.DATA = {"a": 1, "b": {"c": 2}, "d": 3};', it returns {"a": 1, "b": {"c": 2}, "d": 3}
+        def extract_json_after_equals(text, marker):
+            start = text.index(marker) + len(marker)
+            start = text.index("{", start)
+            depth = 0
+            i = start
+            while i < len(text):
+                ch = text[i]
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        return text[start:i + 1]
+                i += 1
+            raise ValueError("No matching brace found")#This only occurs if the JSON in the HTML never ends, which should never happen (since RMP functions)
+
+        relay_json = extract_json_after_equals(script_text, "window.__RELAY_STORE__")
+        store = json.loads(relay_json)#Creates a python dictionary out of the JSON
+
+        departments_set = set()
+
+        for node in store.values():#Discards the keys in the dictionary; looks just at the values. 
+            if isinstance(node, dict) and node.get("__typename") == "FilterOption" and node.get("value"):#If that "node"/value is one of the inner dictionaries, and it's a filter option (since the department names are all filter options) and it has a "value" (the value key corresponds to the dept name)
+                if "amp" not in node["value"]:#Sometimes due to parsing errors, the depts with & in their name get duplicated with an amp. This deletes those
+                    departments_set.add(node["value"].capitalize())#Add the value coresponding to the value key
+
+        departments = sorted(departments_set)#Sort it alphabetically
+
+        return departments
 
 """
 {

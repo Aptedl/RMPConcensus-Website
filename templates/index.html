@@ -17,6 +17,9 @@
         <form action="/class" method="post">
             <button type="submit">Class</button>
         </form>
+        <form action="/dept" method="post">
+            <button type="submit">Compare Departments</button>
+        </form>
     </div>
 
     <div class="entryBox">
@@ -34,6 +37,12 @@
     <div class="concensusBox">
         <body>{{ concensus_text }}</body>
     </div>
+
+    <div class="resetButton">
+        <form action="/class" method="post">
+            <button type="submit">Reset</button>
+        </form>
+    </div>
 </div>
 {% endif %}
 
@@ -48,11 +57,14 @@
         <form action="/class" method="post">
             <button type="submit">Class</button>
         </form>
+        <form action="/dept" method="post">
+            <button type="submit">Compare Departments</button>
+        </form>
     </div>
 
     <div class="entryBox">
         <form action="/className" method="post">
-            <label for="className">Prof. Name:</label>
+            <label for="className">Class Name:</label>
             <input type="text" id="className" name="className" placeholder="e.g. MATH 1ZC3" required>
 
             <label for="uniName">Uni. Name:</label>
@@ -61,13 +73,163 @@
             <label for="deptName">Dept. Name:</label>
             <input type="text" id="deptName" name="deptName" placeholder="e.g. Biochemistry (as in RMP)" required>
 
-             <button type="submit" style="display:none"></button> <!--Invisible button that allows entering after pressing Enter to work-->
+            <button type="submit" style="display:none"></button> <!--Invisible button that allows entering after pressing Enter to work-->
         </form>
     </div>
 
     <div class="concensusBox">
         <body>{{ concensus_text }}</body>
     </div>
+
+    <div class="resetButton">
+        <form action="/class" method="post">
+            <button type="submit">Reset</button>
+        </form>
+    </div>
+
 </div>
 {% endif %}
+
+{% if page == "dept" %}
+<div class = "content-dept">
+    <h1 style="text-align: center;">Rate My Professor Concensus Generator</h1>
+    
+    <div class="topButtons">
+        <form action="/professor" method="post">
+            <button type="submit">Professor</button>
+        </form>
+        <form action="/class" method="post">
+            <button type="submit">Class</button>
+        </form>
+        <form action="/dept" method="post">
+            <button type="submit">Compare Departments</button>
+        </form>
+    </div>
+
+        <div class="deptContainer">
+            <div class="leftDept">
+                <h3 style="text-decoration: underline;">Dept. #1</h3>
+                <p>Average Rating: <span id="rating1">{{ rating1 }}</span></p>
+
+                <select name="uni1" id="uni1" onchange="updateDepts(1)">
+                    <option value="University of Waterloo">University of Waterloo</option>
+                    <option value="McMaster University">McMaster University</option>
+                    <option value="University of Toronto">University of Toronto</option>
+                    <option value="Brock University">Brock University</option>
+                    <option value="Toronto Metropolitan University">Toronto Metropolitan University</option>
+                </select>
+
+                <div class="row-form">
+                    <select name="dept1" id="dept1">
+                    {% for dept in deptList %}
+                        <option value="{{ dept }}">{{ dept }}</option>
+                    {% endfor %}
+                    </select>
+                    <button type="submit" onclick="submitDept(1)">Submit Dept. (may take a few seconds)</button>
+                </div>
+
+                <div class="stacked-text">
+                    <p>Highest Rated Prof:</p>
+                    <p><span id="highProfName1">{{ highProfName1 }}</span> with rating <span id="highProfRating1">{{ highProfRating1 }}</span>/5</p>
+
+                    <p>Lowest Rated Prof:</p>
+                    <p><span id="lowProfName1">{{ lowProfName1 }}</span> with rating <span id="lowProfRating1">{{ lowProfRating1 }}</span>/5</p>
+                </div>
+            </div>
+
+            <div class="rightDept">
+                <h3 style="text-decoration: underline;">Dept. #2</h3>
+                <p>Average Rating: <span id="rating2">{{ rating2 }}</span></p>
+
+                <select name="uni2" id="uni2" onchange="updateDepts(2)">
+                    <option value="University of Waterloo">University of Waterloo</option>
+                    <option value="McMaster University">McMaster University</option>
+                    <option value="University of Toronto">University of Toronto</option>
+                    <option value="Brock University">Brock University</option>
+                    <option value="Toronto Metropolitan University">Toronto Metropolitan University</option>
+                </select>
+
+                <div class="row-form">
+                    <select name="dept2" id="dept2">
+                    {% for dept in deptList %}
+                        <option value="{{ dept }}">{{ dept }}</option>
+                    {% endfor %}
+                    </select>
+                    <button type="submit" onclick="submitDept(2)">Submit Dept. (may take a few seconds)</button>
+                </div>
+
+                <div class="stacked-text">
+                    <p>Highest Rated Prof:</p>
+                    <p><span id="highProfName2">{{ highProfName2 }}</span> with rating <span id="highProfRating2">{{ highProfRating2 }}</span>/5</p>
+
+                    <p>Lowest Rated Prof:</p>
+                    <p><span id="lowProfName2">{{ lowProfName2 }}</span> with rating <span id="lowProfRating2">{{ lowProfRating2 }}</span>/5</p>
+                </div>
+            </div>
+
+            <div class="resetDept">
+                <form action="/dept" method="post">
+                    <button type="submit">Reset All</button>
+                </form>
+            </div>
+        </div>
+
+</div>
+{% endif %}
+
+<script>
+async function updateDepts(num) {
+    const uni = document.getElementById(`uni${num}`).value;
+    const deptSelect = document.getElementById(`dept${num}`);
+
+    const response = await fetch("/getDepts", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `uni=${encodeURIComponent(uni)}`
+    });
+    const depts = await response.json();
+
+    deptSelect.innerHTML = "";
+    depts.forEach(d => {
+        const opt = document.createElement("option");
+        opt.value = d;
+        opt.textContent = d;
+        deptSelect.appendChild(opt);
+    });
+}
+</script>
+
+<script>
+async function submitDept(num) {
+    const uni = document.getElementById(`uni${num}`).value;
+    const dept = document.getElementById(`dept${num}`).value;
+
+    // Don't send a request if either dropdown is empty
+    if (!uni || !dept) return;
+
+    try {
+        const response = await fetch("/submitDept", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ uni: uni, dept: dept })
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch department stats");
+
+        const data = await response.json();
+
+        // Update the HTML text elements with the new data
+        document.getElementById(`rating${num}`).textContent = data.avgRating;
+        document.getElementById(`highProfName${num}`).textContent = data.highProfName;
+        document.getElementById(`highProfRating${num}`).textContent = data.highProfRating;
+        document.getElementById(`lowProfName${num}`).textContent = data.lowProfName;
+        document.getElementById(`lowProfRating${num}`).textContent = data.lowProfRating;
+
+    } catch (error) {
+        console.error("Error updating department stats:", error);
+    }
+}
+</script>
+
+</div>
 {% endblock %}
