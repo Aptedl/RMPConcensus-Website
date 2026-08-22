@@ -17,3 +17,5 @@ beautifulsoup4
 google-genai
 ddgs
 flask
+matplotlib
+mpld3
