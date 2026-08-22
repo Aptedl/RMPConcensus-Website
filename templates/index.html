@@ -1,14 +1,16 @@
 {% extends 'base.html' %}
 
 {% block head %} 
-<title>Rate My Professor Concensus Generator</title><!--Name of website at top -->
+<title>EduSense - Rate My Professor Concensus Generator</title><!--Name of website at top -->
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='Logo.png') }}">
 {% endblock %}
 
 {% block body %} 
 
 {% if page == "professor" or page == "/" %}
 <div class = "content">
-    <h1 style="text-align: center;">Rate My Professor Concensus Generator</h1>
+    <!--<h1 style="text-align: center;">Rate My Professor Concensus Generator</h1>-->
+    <img src="{{ url_for('static', filename='Logo.png') }}" alt="EduSense Logo" class="siteLogo">
     
     <div class="topButtons">
         <form action="/professor" method="post">
@@ -48,7 +50,7 @@
 
 {% if page == "class" %}
 <div class = "content">
-    <h1 style="text-align: center;">Rate My Professor Concensus Generator</h1>
+    <img src="{{ url_for('static', filename='Logo.png') }}" alt="EduSense Logo" class="siteLogo">
     
     <div class="topButtons">
         <form action="/professor" method="post">
@@ -92,7 +94,7 @@
 
 {% if page == "dept" %}
 <div class = "content-dept">
-    <h1 style="text-align: center;">Rate My Professor Concensus Generator</h1>
+    <img src="{{ url_for('static', filename='Logo.png') }}" alt="EduSense Logo" class="siteLogo">
     
     <div class="topButtons">
         <form action="/professor" method="post">
