@@ -36,7 +36,7 @@ def getClassConcensus():
     uni = request.form.get("uniName")
     dept = request.form.get("deptName")
 
-    concensus = Utilities.generateResponse(Utilities, uni, dept, className)
+    concensus = Utilities.generateResponse(uni, dept, className)
 
     return render_template("index.html", page="class", concensus_text=concensus)
 
