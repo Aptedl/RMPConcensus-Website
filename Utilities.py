@@ -11,7 +11,6 @@ from difflib import SequenceMatcher
 import os
 import base64
 import matplotlib.pyplot as plt
-import mplcursors
 import mpld3
 from dotenv import load_dotenv
 load_dotenv()#Allows it to get the API key from the .env
