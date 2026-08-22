@@ -1,9 +1,7 @@
-from flask import Flask, render_template, request, session, jsonify
+from flask import Flask, render_template, request, jsonify
 from Utilities import Utilities, Professor
-import secrets
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(16)
 
 @app.route("/professor", methods=["POST", "GET"])
 def professor():
@@ -47,13 +45,16 @@ def compareDepts():
     uni = request.form.get("uni")
     dept = request.form.get("dept")
     avgRating, highProfName, lowProfName, highProfRating, lowProfRating = Utilities.getAvgRating(Utilities, uni, dept)
+    chart1, chart2 = Utilities.getPlots(Utilities, uni, dept)
 
     return jsonify({
         "avgRating": avgRating,
         "highProfName": highProfName,
         "highProfRating": highProfRating,
         "lowProfName": lowProfName,
-        "lowProfRating": lowProfRating
+        "lowProfRating": lowProfRating,
+        "chart1": chart1,
+        "chart2": chart2
     })
 
 @app.route("/getDepts", methods=["POST"])

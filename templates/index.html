@@ -39,7 +39,7 @@
     </div>
 
     <div class="resetButton">
-        <form action="/professor" method="post">
+        <form action="/class" method="post">
             <button type="submit">Reset</button>
         </form>
     </div>
@@ -117,6 +117,7 @@
                     <option value="University of Toronto">University of Toronto</option>
                     <option value="Brock University">Brock University</option>
                     <option value="Toronto Metropolitan University">Toronto Metropolitan University</option>
+                    <option value="Queen's University at Kingston">Queen's University</option>
                 </select>
 
                 <div class="row-form">
@@ -135,6 +136,9 @@
                     <p>Lowest Rated Prof:</p>
                     <p><span id="lowProfName1">{{ lowProfName1 }}</span> with rating <span id="lowProfRating1">{{ lowProfRating1 }}</span>/5</p>
                 </div>
+
+                <div class="chart" id="chart11"></div>
+                <div class="chart" id="chart21"></div>
             </div>
 
             <div class="rightDept">
@@ -147,6 +151,7 @@
                     <option value="University of Toronto">University of Toronto</option>
                     <option value="Brock University">Brock University</option>
                     <option value="Toronto Metropolitan University">Toronto Metropolitan University</option>
+                    <option value="Queen's University at Kingston">Queen's University</option>
                 </select>
 
                 <div class="row-form">
@@ -165,6 +170,9 @@
                     <p>Lowest Rated Prof:</p>
                     <p><span id="lowProfName2">{{ lowProfName2 }}</span> with rating <span id="lowProfRating2">{{ lowProfRating2 }}</span>/5</p>
                 </div>
+
+                <div class="chart" id="chart12"></div>
+                <div class="chart" id="chart22"></div>
             </div>
 
             <div class="resetDept">
@@ -224,10 +232,24 @@ async function submitDept(num) {
         document.getElementById(`highProfRating${num}`).textContent = data.highProfRating;
         document.getElementById(`lowProfName${num}`).textContent = data.lowProfName;
         document.getElementById(`lowProfRating${num}`).textContent = data.lowProfRating;
+        insertHTMLWithScripts(document.getElementById(`chart1${num}`), data.chart1);
+        insertHTMLWithScripts(document.getElementById(`chart2${num}`), data.chart2);
 
     } catch (error) {
         console.error("Error updating department stats:", error);
     }
+}
+
+function insertHTMLWithScripts(element, html) {
+    element.innerHTML = html;
+    element.querySelectorAll("script").forEach(oldScript => {
+        const newScript = document.createElement("script");
+        for (const attr of oldScript.attributes) {
+            newScript.setAttribute(attr.name, attr.value);
+        }
+        newScript.textContent = oldScript.textContent;
+        oldScript.replaceWith(newScript);
+    });
 }
 </script>
 

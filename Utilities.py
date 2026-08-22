@@ -10,17 +10,21 @@ from ddgs import DDGS
 from difflib import SequenceMatcher
 import os
 import base64
+import matplotlib.pyplot as plt
+import mplcursors
+import mpld3
 from dotenv import load_dotenv
 load_dotenv()#Allows it to get the API key from the .env
 
 class Professor:
-    def __init__(self, url: str = None, reviews: list[str] = [], rating: float = 0.0, firstName: str = "", lastName: str = "", numRatings: int = 0):
+    def __init__(self, url: str = None, reviews: list[str] = [], rating: float = 0.0, firstName: str = "", lastName: str = "", numRatings: int = 0, difficulty: int = 0):
         self.url = url
         self.reviews = reviews
         self.rating = rating
         self.firstName = firstName
         self.lastName = lastName
         self.numRatings = numRatings
+        self.difficulty = difficulty
 
 class Utilities:
     def getAllProfURL(self, uni, dept):
@@ -120,6 +124,7 @@ class Utilities:
 
         #Put the rating and name of the prof into the object
         prof.rating = store[graphql_id]['avgRating']
+        prof.difficulty = store[graphql_id]['avgDifficulty']
         prof.firstName = store[graphql_id]['firstName']
         prof.lastName = store[graphql_id]['lastName']
         prof.numRatings = store[graphql_id]['numRatings']
@@ -393,6 +398,50 @@ class Utilities:
         departments = sorted(departments_set)#Sort it alphabetically
 
         return departments
+
+    def getPlots(self, uni, dept):
+        #Build the data
+        allProfs = self.getAllProfURL(self, uni, dept)
+
+        for i in allProfs[:]:#The extra : creates a temporary copy of the list to use for the loop
+            updatedProf = self.getProfRatings(self, i)#This gets all the data we need and loads it into the object
+            allProfs.remove(i)#Remove the object without all the info from the original list
+
+            if updatedProf.numRatings > 10:
+                allProfs.append(updatedProf) #If they have 10 reviews, add them back into the real list with all their info
+
+        allRatings = [i.rating for i in allProfs]
+        allDifficulties = [i.difficulty for i in allProfs]
+        labels = [f"{i.firstName} {i.lastName}: ({i.difficulty}, {i.rating})" for i in allProfs]
+
+        #Build the first chart
+        fig, ax = plt.subplots(figsize=(6, 4))
+        scatter = ax.scatter(allDifficulties, allRatings, label="Difficulty vs Prof Rating", color="blue", s=30)
+
+        tooltip = mpld3.plugins.PointHTMLTooltip(scatter, labels=labels, hoffset=10, voffset=10)
+        mpld3.plugins.connect(fig, tooltip)
+
+        ax.set_title("Prof Rating vs. Difficulty (hover for specifics)", fontsize=12, fontweight="bold")
+        ax.set_xlabel("Prof Difficulty (/5)")
+        ax.set_ylabel("Prof Rating (/5)")
+
+        html_str1 = mpld3.fig_to_html(fig)
+        plt.close(fig)
+
+        #Build the second chart
+        bins = [1,2,3,4,5]
+        fig, ax = plt.subplots(figsize=(6, 4))
+        scatter = ax.hist(allRatings, bins=bins, edgecolor="black")
+        plt.xticks(bins)
+
+        ax.set_title("Department Ratings Distribution", fontsize=12, fontweight="bold")
+        ax.set_xlabel("Rating Range")
+        ax.set_ylabel("Frequency")
+
+        html_str2 = mpld3.fig_to_html(fig)
+        plt.close(fig)
+        return html_str1, html_str2
+
 
 """
 {
